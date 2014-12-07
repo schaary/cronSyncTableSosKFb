@@ -1,0 +1,81 @@
+#!/usr/bin/env ruby
+# encoding: utf-8
+
+require "awesome_print"
+require "ruby-plsql"
+require 'pry'
+require "sequel"
+require "thor"
+
+class SyncSosKFbtbl < Thor
+
+  desc 'synchronize','synchronize'
+  def synchronize
+    fetch_sos_k_fb_tbl
+    cleanup
+    push_to_idm
+  end
+
+private
+
+  def connect_sos
+    @sos = Sequel.postgres \
+      ENV['PG_ZUV_INSTANCE'],
+      user: ENV['PG_ZUV_USER'],
+      password: ENV['PG_ZUV_PASSWORD'],
+      host: ENV['PG_ZUV_HOST'],
+      port: ENV['PG_ZUV_PORT']
+  end
+
+  def connect_idm
+    plsql.connection ||= OCI8.new \
+      ENV['IDM_USERNAME'],
+      ENV['IDM_PASSWORD'],
+      ENV['IDM_SID']
+  end
+
+  def cleanup
+    connect_idm
+    plsql.sos_cron_pkg.sosKFbCleanUp
+  end
+
+  def push_to_idm
+    connect_idm
+
+    entry = {}
+    @sos_k_fb_tbl.map do |record|
+      entry = {
+        fb: record[:fb].to_s.encode('utf-8').strip,
+        aikz: record[:aikz].to_s.encode('utf-8').strip,
+        ktxt: record[:ktxt].to_s.encode('utf-8').strip,
+        dtxt: record[:dtxt].to_s.encode('utf-8').strip,
+        ltxt: record[:ltxt].to_s.encode('utf-8').strip,
+        sbearb: record[:sbearb].to_s.encode('utf-8').strip,
+        pbearb: record[:pbearb].to_s.encode('utf-8').strip,
+        wahllokal: record[:wahllokal].to_s.encode('utf-8').strip,
+        wahltermin_von: record[:wahltermin_von],
+        wahltermin_bis: record[:wahltermin_bis],
+        rueck_ort: record[:rueck_ort].to_s.encode('utf-8').strip,
+        rueck_von: record[:rueck_von],
+        rueck_bis: record[:rueck_bis],
+        sonst_termin1: record[:sonst_termin1],
+        sonst_termin2: record[:sonst_termin2],
+        sortkz1: record[:sortkz1].to_s.encode('utf-8').strip,
+        sprache: record[:sprache].to_s.encode('utf-8').strip,
+        reffb: record[:reffb].to_s.encode('utf-8').strip,
+      }
+
+      ap entry
+
+      plsql.sos_k_fb_tbl.insert entry
+      plsql.commit
+    end
+  end
+
+  def fetch_sos_k_fb_tbl
+    connect_sos
+    @sos_k_fb_tbl = @sos[:k_fb]
+  end
+end
+
+SyncSosKFbtbl.start
