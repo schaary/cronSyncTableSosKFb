@@ -65,8 +65,6 @@ private
         reffb: record[:reffb].to_s.encode('utf-8').strip,
       }
 
-      ap entry
-
       plsql.sos_k_fb_tbl.insert entry
       plsql.commit
     end
